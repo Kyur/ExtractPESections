@@ -4,6 +4,7 @@
 
 VOID ExceptionHandler();
 BOOL IsPEFile(PDWORD pPeFile, DWORD fileSize);
+PDWORD PDWInitAlloc(PDWORD pDst, DWORD allocSize);
 
 
 int main(int argc, char** argv)
@@ -13,11 +14,13 @@ int main(int argc, char** argv)
 	DWORD fileSize = 0;
 	DWORD lpNumberOfBytesReadWrite = 0;
 
+	PDWORD pPEImg = NULL;
 	PDWORD pNTHeader = NULL;
 	PDWORD pOptionalHeader = NULL;
 	PDWORD pIterSectionHeader = NULL;
 	PDWORD pDst = NULL;
 	PDWORD pSrc = NULL;
+	PDWORD pExtraSectionStart = NULL;
 
 	char arrCurPath[MAX_PATH] = { NULL, };
 	char arrSectionName[MAX_PATH] = { NULL, };
@@ -28,6 +31,8 @@ int main(int argc, char** argv)
 	unsigned char cnt = 0;
 	unsigned int sizeOfRawData = 0;
 	unsigned int pointerToRawData = 0;
+	unsigned int extraSectionStart = 0; 
+	unsigned int extraSectionSize = 0;
 
 
 	if (argc != 2)
@@ -45,13 +50,12 @@ int main(int argc, char** argv)
 	fileSize = GetFileSize(hFile, NULL);
 	if (fileSize <= 0)
 	{
-		printf(" [!] FILE SIZE: 0\n");
+		printf(" [!] FILE SIZE IS ABNORMAL: %08d\n", fileSize);
 		ExceptionHandler();
 	}
 
-	//	Set memory area for load file
-	const PDWORD pPEImg = (PDWORD)malloc(fileSize);
-	memset(pPEImg, 0x00, fileSize);
+	//	Set memory area for load PE file
+	pPEImg = PDWInitAlloc(pPEImg, fileSize);
 
 	//	Read file
 	if (!ReadFile(hFile, pPEImg, fileSize, &lpNumberOfBytesReadWrite, NULL))
@@ -64,7 +68,6 @@ int main(int argc, char** argv)
 
 	//	Get PE Info.
 	pNTHeader = (PDWORD)((PBYTE)pPEImg + *((PBYTE)pPEImg + 0x3C));
-
 	numberOfSections = *(PWORD)((PBYTE)pNTHeader + 0x06);
 	sizeOfOptionalHeader = *(PWORD)((PBYTE)pNTHeader + 0x14);
 	pOptionalHeader = (PDWORD)((PBYTE)pNTHeader + 0x18);
@@ -82,8 +85,8 @@ int main(int argc, char** argv)
 		//	Get header data
 		if (cnt == 0)
 		{
-			pDst = (PDWORD)malloc(pointerToRawData);
-			memset(pDst, 0x00, pointerToRawData);
+			//	Read data until first pointerToRawData
+			pDst = PDWInitAlloc(pDst, pointerToRawData);
 			memcpy(pDst, pPEImg, pointerToRawData);
 
 			GetCurrentDirectory(MAX_PATH, arrCurPath);
@@ -104,9 +107,9 @@ int main(int argc, char** argv)
 		}
 
 		//	Allocate one section's memory space
-		pDst = (PDWORD)malloc(sizeOfRawData);
+		pDst = PDWInitAlloc(pDst, sizeOfRawData);
 		pSrc = (PDWORD)((PBYTE)pPEImg + pointerToRawData);
-		memset(pDst, 0x00, sizeOfRawData);
+		
 
 		//	Copy one section's data to [pDst]
 		memcpy(pDst, pSrc, sizeOfRawData);
@@ -132,6 +135,33 @@ int main(int argc, char** argv)
 		CloseHandle(hDropFile);
 	}
 	
+
+	extraSectionStart = pointerToRawData + sizeOfRawData;
+	pExtraSectionStart = (PDWORD)((PBYTE)pPEImg + (pointerToRawData + sizeOfRawData));
+
+	//	Check extra-section
+	if (extraSectionStart < fileSize)
+	{
+		printf(" [-] Extra section exsited.\n");
+		extraSectionSize = fileSize - extraSectionStart;
+		
+		pDst = PDWInitAlloc(pDst, extraSectionSize);
+		memcpy(pDst, pExtraSectionStart, extraSectionSize);
+
+		GetCurrentDirectory(MAX_PATH, arrCurPath);
+		sprintf_s(arrDropPath, "%s\\%02d_EXTRASECTION", arrCurPath, cnt);
+
+		hDropFile = CreateFile(arrDropPath, GENERIC_WRITE | GENERIC_READ, NULL, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+		if (hDropFile == INVALID_HANDLE_VALUE)
+			ExceptionHandler();
+
+		if (!WriteFile(hDropFile, pDst, extraSectionSize, &lpNumberOfBytesReadWrite, NULL))
+			ExceptionHandler();
+
+		free(pDst);
+		CloseHandle(hDropFile);
+	}
+
 	printf(" [-] Success separating sections...\n");
 
 	//	End normal exit
@@ -173,3 +203,10 @@ BOOL IsPEFile(PDWORD pPeFile, DWORD fileSize)
 	return TRUE;
 }
 
+PDWORD PDWInitAlloc(PDWORD pDst, DWORD allocSize)
+{
+	pDst = (PDWORD)malloc(allocSize);
+	memset(pDst, 0x00, allocSize);
+
+	return pDst;
+}
