@@ -42,6 +42,8 @@ int main(int argc, char** argv)
 	}
 
 	//	Open target file
+	printf("%s\n", argv[0]);
+	printf("%s\n", argv[1]);
 	hFile = CreateFile(argv[1], GENERIC_READ, NULL, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 	if (hFile == INVALID_HANDLE_VALUE)
 		ExceptionHandler();
@@ -73,6 +75,7 @@ int main(int argc, char** argv)
 	pOptionalHeader = (PDWORD)((PBYTE)pNTHeader + 0x18);
 	pIterSectionHeader = (PDWORD)((PBYTE)pOptionalHeader + sizeOfOptionalHeader);
 
+	
 
 	//	Separate sections as much as numberOfSections
 	//	Create/Write dump files
@@ -90,12 +93,15 @@ int main(int argc, char** argv)
 			memcpy(pDst, pPEImg, pointerToRawData);
 
 			GetCurrentDirectory(MAX_PATH, arrCurPath);
-			sprintf_s(arrDropPath, "%s\\00_HEADER", arrCurPath);
+			sprintf_s(arrDropPath, "%s\\%s_00_HEADER", arrCurPath, strrchr( argv[1], '\\' ) + 1);
 
 			//	Create/Write dump file
 			hDropFile = CreateFile(arrDropPath, GENERIC_WRITE | GENERIC_READ, NULL, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 			if (hDropFile == INVALID_HANDLE_VALUE)
+			{
+				OutputDebugString("craeteFile");
 				ExceptionHandler();
+			}
 
 			if (!WriteFile(hDropFile, pDst, pointerToRawData, &lpNumberOfBytesReadWrite, NULL))
 				ExceptionHandler();
@@ -117,7 +123,7 @@ int main(int argc, char** argv)
 		//	Get section name and set dump file path
 		GetCurrentDirectory(MAX_PATH, arrCurPath);
 		strncpy_s(arrSectionName, (char*)pIterSectionHeader, 0x08);
-		sprintf_s(arrDropPath, "%s\\%02d_%s.section", arrCurPath, cnt, arrSectionName);
+		sprintf_s(arrDropPath, "%s\\%s_%02d_%s.section", arrCurPath, strrchr( argv[1], '\\' ) + 1, cnt, arrSectionName);
 
 		//	Create/Write dump file
 		hDropFile = CreateFile(arrDropPath, GENERIC_WRITE | GENERIC_READ, NULL, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
@@ -149,7 +155,7 @@ int main(int argc, char** argv)
 		memcpy(pDst, pExtraSectionStart, extraSectionSize);
 
 		GetCurrentDirectory(MAX_PATH, arrCurPath);
-		sprintf_s(arrDropPath, "%s\\%02d_EXTRASECTION", arrCurPath, cnt);
+		sprintf_s(arrDropPath, "%s\\%s_%02d_EXTRASECTION", arrCurPath, strrchr( argv[1], '\\' ) + 1, cnt);
 
 		hDropFile = CreateFile(arrDropPath, GENERIC_WRITE | GENERIC_READ, NULL, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 		if (hDropFile == INVALID_HANDLE_VALUE)
@@ -167,13 +173,16 @@ int main(int argc, char** argv)
 	//	End normal exit
 	free(pPEImg);
 	CloseHandle(hFile);
+
 	return 0;
 }
 
 
 VOID ExceptionHandler()
 {
+	char* s;
 	printf(" [!] __ERROR CODE: %08X\n", GetLastError());
+	scanf_s("%d", &s);
 	ExitProcess(FALSE);
 }
 
