@@ -67,7 +67,7 @@ int main(int argc, char** argv)
 		ExceptionHandler();
 
 	//	Get PE Info.
-	pNTHeader = (PDWORD)((PBYTE)pPEImg + *((PBYTE)pPEImg + 0x3C));
+	pNTHeader = (PDWORD)((PBYTE)pPEImg + *((PDWORD)(((PBYTE)pPEImg) + 0x3C)));
 	numberOfSections = *(PWORD)((PBYTE)pNTHeader + 0x06);
 	sizeOfOptionalHeader = *(PWORD)((PBYTE)pNTHeader + 0x14);
 	pOptionalHeader = (PDWORD)((PBYTE)pNTHeader + 0x18);
