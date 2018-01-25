@@ -1,6 +1,6 @@
 #include <Windows.h>
 #include <stdio.h>
-
+#include <string.h>
 
 VOID ExceptionHandler();
 BOOL IsPEFile(PDWORD pPeFile, DWORD fileSize);
@@ -25,6 +25,7 @@ int main(int argc, char** argv)
 	char arrCurPath[MAX_PATH] = { NULL, };
 	char arrSectionName[MAX_PATH] = { NULL, };
 	char arrDropPath[MAX_PATH] = { NULL, };
+	char arrOriginalFileName[MAX_PATH] = { NULL, };
 
 	unsigned char numberOfSections = 0;
 	unsigned char sizeOfOptionalHeader = 0;
@@ -40,7 +41,7 @@ int main(int argc, char** argv)
 		printf(" [!] Usage: ExtractPESections.exe [Target PE file]\n");
 		return -1;
 	}
-
+	
 	//	Open target file
 	hFile = CreateFile(argv[1], GENERIC_READ, NULL, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 	if (hFile == INVALID_HANDLE_VALUE)
@@ -60,8 +61,7 @@ int main(int argc, char** argv)
 	//	Read file
 	if (!ReadFile(hFile, pPEImg, fileSize, &lpNumberOfBytesReadWrite, NULL))
 		ExceptionHandler();
-
-
+	
 	//	Check PE file format
 	if (!IsPEFile(pPEImg, fileSize))
 		ExceptionHandler();
@@ -72,7 +72,12 @@ int main(int argc, char** argv)
 	sizeOfOptionalHeader = *(PWORD)((PBYTE)pNTHeader + 0x14);
 	pOptionalHeader = (PDWORD)((PBYTE)pNTHeader + 0x18);
 	pIterSectionHeader = (PDWORD)((PBYTE)pOptionalHeader + sizeOfOptionalHeader);
-
+		
+	//	Set target file path
+	if(strrchr(argv[1], '\\'))
+		strncpy(arrOriginalFileName, strrchr(argv[1], '\\'), strlen(strrchr(argv[1], '\\')));
+	else
+		memcpy(arrOriginalFileName, argv[1], MAX_PATH);
 	
 
 	//	Separate sections as much as numberOfSections
@@ -91,7 +96,7 @@ int main(int argc, char** argv)
 			memcpy(pDst, pPEImg, pointerToRawData);
 
 			GetCurrentDirectory(MAX_PATH, arrCurPath);
-			sprintf_s(arrDropPath, "%s\\%s_00_HEADER", arrCurPath, strrchr( argv[1], '\\' ) + 1);
+			sprintf(arrDropPath, "%s\\%s_00_HEADER", arrCurPath, arrOriginalFileName);
 
 			//	Create/Write dump file
 			hDropFile = CreateFile(arrDropPath, GENERIC_WRITE | GENERIC_READ, NULL, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
@@ -111,14 +116,13 @@ int main(int argc, char** argv)
 		pDst = PDWInitAlloc(pDst, sizeOfRawData);
 		pSrc = (PDWORD)((PBYTE)pPEImg + pointerToRawData);
 		
-
 		//	Copy one section's data to [pDst]
 		memcpy(pDst, pSrc, sizeOfRawData);
 
 		//	Get section name and set dump file path
 		GetCurrentDirectory(MAX_PATH, arrCurPath);
-		strncpy_s(arrSectionName, (char*)pIterSectionHeader, 0x08);
-		sprintf_s(arrDropPath, "%s\\%s_%02d_%s.section", arrCurPath, strrchr( argv[1], '\\' ) + 1, cnt, arrSectionName);
+		strncpy(arrSectionName, (char*)pIterSectionHeader, 0x08);
+		sprintf(arrDropPath, "%s\\%s_%02d_%s.section", arrCurPath, arrOriginalFileName, cnt, arrSectionName);
 
 		//	Create/Write dump file
 		hDropFile = CreateFile(arrDropPath, GENERIC_WRITE | GENERIC_READ, NULL, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
@@ -136,7 +140,6 @@ int main(int argc, char** argv)
 		CloseHandle(hDropFile);
 	}
 	
-
 	extraSectionStart = pointerToRawData + sizeOfRawData;
 	pExtraSectionStart = (PDWORD)((PBYTE)pPEImg + (pointerToRawData + sizeOfRawData));
 
@@ -150,7 +153,7 @@ int main(int argc, char** argv)
 		memcpy(pDst, pExtraSectionStart, extraSectionSize);
 
 		GetCurrentDirectory(MAX_PATH, arrCurPath);
-		sprintf_s(arrDropPath, "%s\\%s_%02d_EXTRASECTION", arrCurPath, strrchr( argv[1], '\\' ) + 1, cnt);
+		sprintf(arrDropPath, "%s\\%s_%02d_EXTRASECTION", arrCurPath, arrOriginalFileName, cnt);
 
 		hDropFile = CreateFile(arrDropPath, GENERIC_WRITE | GENERIC_READ, NULL, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 		if (hDropFile == INVALID_HANDLE_VALUE)
